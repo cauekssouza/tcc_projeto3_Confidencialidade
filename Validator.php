@@ -55,15 +55,12 @@ class Validator extends BaseValidator
         );
 
         /*
-         * Reutiliza a dependência recebida em vez de criar um novo
-         * ValidatorFormats a cada validação.
+         * Reutiliza as dependências durante todo o ciclo de vida
+         * deste Validator, evitando instanciações repetidas
+         * durante cada chamada de validação.
          */
         $this->formatValidator = $formatValidator;
 
-        /*
-         * Instancia as regras uma única vez durante o ciclo de vida
-         * deste Validator, evitando alocações repetidas.
-         */
         $this->cpf = new Cpf();
         $this->cnpj = new Cnpj();
         $this->cnh = new Cnh();
@@ -78,39 +75,43 @@ class Validator extends BaseValidator
         $this->passaporte = new Passaporte();
     }
 
+    /**
+     * Valida previamente o formato do documento.
+     *
+     * Falha de forma segura para valores não escalares,
+     * nulos ou vazios, evitando coerções inesperadas
+     * de dados potencialmente não confiáveis.
+     */
     protected function validateFormat(
         mixed $value,
         string $document,
         ?string $attribute = null
     ): bool {
-        /*
-         * Fail closed:
-         *
-         * um valor ausente/vazio nunca deve resultar em null implícito.
-         * A validação retorna explicitamente false.
-         */
-        if (empty($value)) {
+        if (!is_scalar($value)) {
             return false;
         }
 
-        return (bool) $this->formatValidator->execute(
-            $value,
-            $document
-        );
+        $value = trim((string) $value);
+
+        if ($value === '') {
+            return false;
+        }
+
+        return $this->formatValidator->execute($value, $document) === true;
     }
 
     protected function validateCpf($attribute, $value): bool
     {
         /*
-         * Validação em cascata com short-circuit:
+         * Validação em cascata:
          *
-         * 1. valida o formato;
-         * 2. somente se o formato for válido executa a regra de CPF.
+         * 1. O formato precisa ser válido.
+         * 2. Somente então o algoritmo de CPF é executado.
          *
-         * Isso corrige o comportamento anterior, no qual o retorno de
-         * validateFormat() era simplesmente descartado.
+         * O short-circuit do && impede processamento desnecessário
+         * caso o formato já seja inválido.
          */
-        return $this->validateFormat($value, 'cpf', $attribute)
+        return $this->validateFormat($value, 'cpf')
             && $this->cpf->validateCpf($attribute, $value);
     }
 
@@ -156,12 +157,11 @@ class Validator extends BaseValidator
         $value,
         $parameters
     ): bool {
-        return $this->inscricaoEstadual
-            ->validateInscricaoEstadual(
-                $attribute,
-                $value,
-                $parameters
-            );
+        return $this->inscricaoEstadual->validateInscricaoEstadual(
+            $attribute,
+            $value,
+            $parameters
+        );
     }
 
     protected function validateRenavam($attribute, $value): bool
