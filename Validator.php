@@ -2,23 +2,33 @@
 
 namespace geekcom\ValidatorDocs;
 
-use geekcom\ValidatorDocs\Rules\{Certidao,
-    Cnh,
-    Cnpj,
-    Cns,
-    Cpf,
-    Ddd,
-    InscricaoEstadual,
-    Nis,
-    Placa,
-    Renavam,
-    TituloEleitoral,
-    Passaporte};
+use geekcom\ValidatorDocs\Rules\Certidao;
+use geekcom\ValidatorDocs\Rules\Cnh;
+use geekcom\ValidatorDocs\Rules\Cnpj;
+use geekcom\ValidatorDocs\Rules\Cns;
+use geekcom\ValidatorDocs\Rules\Cpf;
+use geekcom\ValidatorDocs\Rules\Ddd;
+use geekcom\ValidatorDocs\Rules\InscricaoEstadual;
+use geekcom\ValidatorDocs\Rules\Nis;
+use geekcom\ValidatorDocs\Rules\Passaporte;
+use geekcom\ValidatorDocs\Rules\Placa;
+use geekcom\ValidatorDocs\Rules\Renavam;
+use geekcom\ValidatorDocs\Rules\TituloEleitoral;
 use Illuminate\Contracts\Translation\Translator;
 use Illuminate\Validation\Validator as BaseValidator;
 
 class Validator extends BaseValidator
 {
+    private ValidatorFormats $formatValidator;
+
+    /**
+     * Mantém uma única instância de cada regra durante o ciclo
+     * de vida do Validator.
+     *
+     * @var array<class-string, object>
+     */
+    private array $validators = [];
+
     public function __construct(
         Translator $translator,
         ValidatorFormats $formatValidator,
@@ -27,106 +37,120 @@ class Validator extends BaseValidator
         array $messages = [],
         array $customAttributes = []
     ) {
-        parent::__construct($translator, $data, $rules, $messages, $customAttributes);
+        parent::__construct(
+            $translator,
+            $data,
+            $rules,
+            $messages,
+            $customAttributes
+        );
+
+        $this->formatValidator = $formatValidator;
     }
 
-    protected function validateFormat($value, $document, $attribute = null)
+    protected function validateFormat($value, string $document): void
     {
         if (!empty($value)) {
-            return (new ValidatorFormats())->execute($value, $document);
+            $this->formatValidator->execute($value, $document);
         }
     }
 
     protected function validateCpf($attribute, $value): bool
     {
-        $cpf = new Cpf();
-
         $this->validateFormat($value, 'cpf');
 
-        return $cpf->validateCpf($attribute, $value);
+        return $this->validator(Cpf::class)
+            ->validateCpf($attribute, $value);
     }
 
     protected function validateCnpj($attribute, $value): bool
     {
-        $cnpj = new Cnpj();
-
-        return $cnpj->validateCnpj($attribute, $value);
+        return $this->validator(Cnpj::class)
+            ->validateCnpj($attribute, $value);
     }
 
     protected function validateCpfCnpj($attribute, $value): bool
     {
-        $cpf = new Cpf();
-        $cnpj = new Cnpj();
-
-        return ($cpf->validateCpf($attribute, $value) || $cnpj->validateCnpj($attribute, $value));
+        return $this->validateCpf($attribute, $value)
+            || $this->validateCnpj($attribute, $value);
     }
 
     protected function validateCnh($attribute, $value): bool
     {
-        $cnh = new Cnh();
-
-        return $cnh->validateCnh($attribute, $value);
+        return $this->validator(Cnh::class)
+            ->validateCnh($attribute, $value);
     }
 
     protected function validateTituloEleitor($attribute, $value): bool
     {
-        $tituloEleitoral = new TituloEleitoral();
-
-        return $tituloEleitoral->validateTituloEleitor($attribute, $value);
+        return $this->validator(TituloEleitoral::class)
+            ->validateTituloEleitor($attribute, $value);
     }
 
     protected function validateNis($attribute, $value): bool
     {
-        $nis = new Nis();
-
-        return $nis->validateNis($attribute, $value);
+        return $this->validator(Nis::class)
+            ->validateNis($attribute, $value);
     }
 
     protected function validateCns($attribute, $value): bool
     {
-        $cns = new Cns();
-
-        return $cns->validateCns($attribute, $value);
+        return $this->validator(Cns::class)
+            ->validateCns($attribute, $value);
     }
 
     protected function validateCertidao($attribute, $value): bool
     {
-        $certidao = new Certidao();
-
-        return $certidao->validateCertidao($attribute, $value);
+        return $this->validator(Certidao::class)
+            ->validateCertidao($attribute, $value);
     }
 
-    protected function validateInscricaoEstadual($attribute, $value, $parameters): bool
-    {
-        $inscricaoEstadual = new InscricaoEstadual();
-
-        return $inscricaoEstadual->validateInscricaoEstadual($attribute, $value, $parameters);
+    protected function validateInscricaoEstadual(
+        $attribute,
+        $value,
+        $parameters
+    ): bool {
+        return $this->validator(InscricaoEstadual::class)
+            ->validateInscricaoEstadual(
+                $attribute,
+                $value,
+                $parameters
+            );
     }
 
     protected function validateRenavam($attribute, $value): bool
     {
-        $renavam = new Renavam();
-
-        return $renavam->validateRenavam($attribute, $value);
+        return $this->validator(Renavam::class)
+            ->validateRenavam($attribute, $value);
     }
 
     protected function validatePlaca($attribute, $value): bool
     {
-        $placa = new Placa();
-
-        return $placa->validatePlaca($attribute, $value);
+        return $this->validator(Placa::class)
+            ->validatePlaca($attribute, $value);
     }
 
     protected function validateDdd($attribute, $value): bool
     {
-        $ddd = new Ddd();
-
-        return $ddd->validateDdd($attribute, $value);
+        return $this->validator(Ddd::class)
+            ->validateDdd($attribute, $value);
     }
 
     protected function validatePassaporte($attribute, $value): bool
     {
-        $passaporte = new Passaporte();
-        return $passaporte->validatePassaporte($attribute, $value);
+        return $this->validator(Passaporte::class)
+            ->validatePassaporte($attribute, $value);
+    }
+
+    /**
+     * @template T of object
+     *
+     * @param class-string<T> $class
+     * @return T
+     */
+    private function validator(string $class): object
+    {
+        return $this->validators[$class]
+            ??= new $class();
     }
 }
