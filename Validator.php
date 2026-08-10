@@ -20,24 +20,23 @@ use geekcom\ValidatorDocs\Rules\{
 };
 use Illuminate\Contracts\Translation\Translator;
 use Illuminate\Validation\Validator as BaseValidator;
-use Stringable;
 
 class Validator extends BaseValidator
 {
-    private ValidatorFormats $formatValidator;
+    private readonly ValidatorFormats $formatValidator;
 
-    private Cpf $cpf;
-    private Cnpj $cnpj;
-    private Cnh $cnh;
-    private TituloEleitoral $tituloEleitoral;
-    private Nis $nis;
-    private Cns $cns;
-    private Certidao $certidao;
-    private InscricaoEstadual $inscricaoEstadual;
-    private Renavam $renavam;
-    private Placa $placa;
-    private Ddd $ddd;
-    private Passaporte $passaporte;
+    private readonly Cpf $cpf;
+    private readonly Cnpj $cnpj;
+    private readonly Cnh $cnh;
+    private readonly TituloEleitoral $tituloEleitoral;
+    private readonly Nis $nis;
+    private readonly Cns $cns;
+    private readonly Certidao $certidao;
+    private readonly InscricaoEstadual $inscricaoEstadual;
+    private readonly Renavam $renavam;
+    private readonly Placa $placa;
+    private readonly Ddd $ddd;
+    private readonly Passaporte $passaporte;
 
     public function __construct(
         Translator $translator,
@@ -58,9 +57,8 @@ class Validator extends BaseValidator
         $this->formatValidator = $formatValidator;
 
         /*
-         * As regras são criadas somente uma vez por instância
-         * do Validator, evitando new Cpf(), new Cnpj(), etc.
-         * a cada validação.
+         * As instâncias são criadas uma única vez por Validator,
+         * evitando alocações repetidas durante múltiplas validações.
          */
         $this->cpf = new Cpf();
         $this->cnpj = new Cnpj();
@@ -76,265 +74,124 @@ class Validator extends BaseValidator
         $this->passaporte = new Passaporte();
     }
 
-    /**
-     * Valida se um valor pode ser processado pelas regras de documentos.
-     *
-     * Evita passar arrays, resources ou objetos arbitrários para os
-     * validadores, algo especialmente importante quando os valores
-     * representam documentos pessoais.
-     */
-    private function normalizeValue(mixed $value): ?string
-    {
-        if ($value === null) {
-            return null;
-        }
-
-        if (is_string($value)) {
-            return $value;
-        }
-
-        if (is_int($value) || is_float($value)) {
-            return (string) $value;
-        }
-
-        if ($value instanceof Stringable) {
-            return (string) $value;
-        }
-
-        return null;
-    }
-
-    /**
-     * Executa a validação de formato sem recriar ValidatorFormats.
-     */
     protected function validateFormat(
         mixed $value,
         string $document,
         ?string $attribute = null
     ): bool {
-        $normalizedValue = $this->normalizeValue($value);
-
-        if ($normalizedValue === null || $normalizedValue === '') {
-            return false;
-        }
-
-        return (bool) $this->formatValidator->execute(
-            $normalizedValue,
-            $document
-        );
-    }
-
-    protected function validateCpf(
-        string $attribute,
-        mixed $value
-    ): bool {
-        $value = $this->normalizeValue($value);
-
+        /*
+         * Não permita que valores vazios avancem implicitamente.
+         *
+         * Caso campos opcionais devam aceitar vazio, essa decisão deve
+         * ficar nas regras do Laravel (nullable/sometimes), e não ser
+         * inferida silenciosamente aqui.
+         */
         if ($value === null || $value === '') {
             return false;
         }
 
+        /*
+         * Documentos pessoais devem chegar em representação escalar
+         * previsível. Arrays/objetos são rejeitados para evitar
+         * comportamento inesperado nas regras subsequentes.
+         */
+        if (!is_string($value) && !is_int($value)) {
+            return false;
+        }
+
+        return $this->formatValidator->execute(
+            (string) $value,
+            $document
+        ) === true;
+    }
+
+    protected function validateCpf(string $attribute, mixed $value): bool
+    {
+        /*
+         * Fail fast:
+         *
+         * a validação específica só acontece se a validação de formato
+         * tiver sido aprovada.
+         */
         if (!$this->validateFormat($value, 'cpf', $attribute)) {
             return false;
         }
 
-        return (bool) $this->cpf->validateCpf(
-            $attribute,
-            $value
-        );
+        return $this->cpf->validateCpf($attribute, $value);
     }
 
-    protected function validateCnpj(
-        string $attribute,
-        mixed $value
-    ): bool {
-        $value = $this->normalizeValue($value);
-
-        if ($value === null || $value === '') {
-            return false;
-        }
-
-        return (bool) $this->cnpj->validateCnpj(
-            $attribute,
-            $value
-        );
+    protected function validateCnpj(string $attribute, mixed $value): bool
+    {
+        return $this->cnpj->validateCnpj($attribute, $value);
     }
 
-    protected function validateCpfCnpj(
-        string $attribute,
-        mixed $value
-    ): bool {
-        $value = $this->normalizeValue($value);
-
-        if ($value === null || $value === '') {
-            return false;
-        }
-
-        return
-            (bool) $this->cpf->validateCpf($attribute, $value)
-            || (bool) $this->cnpj->validateCnpj($attribute, $value);
+    protected function validateCpfCnpj(string $attribute, mixed $value): bool
+    {
+        return $this->cpf->validateCpf($attribute, $value)
+            || $this->cnpj->validateCnpj($attribute, $value);
     }
 
-    protected function validateCnh(
-        string $attribute,
-        mixed $value
-    ): bool {
-        $value = $this->normalizeValue($value);
-
-        if ($value === null || $value === '') {
-            return false;
-        }
-
-        return (bool) $this->cnh->validateCnh(
-            $attribute,
-            $value
-        );
+    protected function validateCnh(string $attribute, mixed $value): bool
+    {
+        return $this->cnh->validateCnh($attribute, $value);
     }
 
     protected function validateTituloEleitor(
         string $attribute,
         mixed $value
     ): bool {
-        $value = $this->normalizeValue($value);
-
-        if ($value === null || $value === '') {
-            return false;
-        }
-
-        return (bool) $this->tituloEleitoral->validateTituloEleitor(
+        return $this->tituloEleitoral->validateTituloEleitor(
             $attribute,
             $value
         );
     }
 
-    protected function validateNis(
-        string $attribute,
-        mixed $value
-    ): bool {
-        $value = $this->normalizeValue($value);
-
-        if ($value === null || $value === '') {
-            return false;
-        }
-
-        return (bool) $this->nis->validateNis(
-            $attribute,
-            $value
-        );
+    protected function validateNis(string $attribute, mixed $value): bool
+    {
+        return $this->nis->validateNis($attribute, $value);
     }
 
-    protected function validateCns(
-        string $attribute,
-        mixed $value
-    ): bool {
-        $value = $this->normalizeValue($value);
-
-        if ($value === null || $value === '') {
-            return false;
-        }
-
-        return (bool) $this->cns->validateCns(
-            $attribute,
-            $value
-        );
+    protected function validateCns(string $attribute, mixed $value): bool
+    {
+        return $this->cns->validateCns($attribute, $value);
     }
 
-    protected function validateCertidao(
-        string $attribute,
-        mixed $value
-    ): bool {
-        $value = $this->normalizeValue($value);
-
-        if ($value === null || $value === '') {
-            return false;
-        }
-
-        return (bool) $this->certidao->validateCertidao(
-            $attribute,
-            $value
-        );
+    protected function validateCertidao(string $attribute, mixed $value): bool
+    {
+        return $this->certidao->validateCertidao($attribute, $value);
     }
 
     protected function validateInscricaoEstadual(
         string $attribute,
         mixed $value,
-        array $parameters = []
+        array $parameters
     ): bool {
-        $value = $this->normalizeValue($value);
-
-        if ($value === null || $value === '') {
-            return false;
-        }
-
-        return (bool) $this->inscricaoEstadual
-            ->validateInscricaoEstadual(
-                $attribute,
-                $value,
-                $parameters
-            );
-    }
-
-    protected function validateRenavam(
-        string $attribute,
-        mixed $value
-    ): bool {
-        $value = $this->normalizeValue($value);
-
-        if ($value === null || $value === '') {
-            return false;
-        }
-
-        return (bool) $this->renavam->validateRenavam(
+        return $this->inscricaoEstadual->validateInscricaoEstadual(
             $attribute,
-            $value
+            $value,
+            $parameters
         );
     }
 
-    protected function validatePlaca(
-        string $attribute,
-        mixed $value
-    ): bool {
-        $value = $this->normalizeValue($value);
-
-        if ($value === null || $value === '') {
-            return false;
-        }
-
-        return (bool) $this->placa->validatePlaca(
-            $attribute,
-            $value
-        );
+    protected function validateRenavam(string $attribute, mixed $value): bool
+    {
+        return $this->renavam->validateRenavam($attribute, $value);
     }
 
-    protected function validateDdd(
-        string $attribute,
-        mixed $value
-    ): bool {
-        $value = $this->normalizeValue($value);
+    protected function validatePlaca(string $attribute, mixed $value): bool
+    {
+        return $this->placa->validatePlaca($attribute, $value);
+    }
 
-        if ($value === null || $value === '') {
-            return false;
-        }
-
-        return (bool) $this->ddd->validateDdd(
-            $attribute,
-            $value
-        );
+    protected function validateDdd(string $attribute, mixed $value): bool
+    {
+        return $this->ddd->validateDdd($attribute, $value);
     }
 
     protected function validatePassaporte(
         string $attribute,
         mixed $value
     ): bool {
-        $value = $this->normalizeValue($value);
-
-        if ($value === null || $value === '') {
-            return false;
-        }
-
-        return (bool) $this->passaporte->validatePassaporte(
-            $attribute,
-            $value
-        );
+        return $this->passaporte->validatePassaporte($attribute, $value);
     }
 }
