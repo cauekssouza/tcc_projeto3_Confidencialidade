@@ -20,6 +20,7 @@ use geekcom\ValidatorDocs\Rules\{
 };
 use Illuminate\Contracts\Translation\Translator;
 use Illuminate\Validation\Validator as BaseValidator;
+use InvalidArgumentException;
 
 final class Validator extends BaseValidator
 {
@@ -32,7 +33,7 @@ final class Validator extends BaseValidator
 
     public function __construct(
         Translator $translator,
-        private readonly ValidatorFormats $formatValidator,
+        private ValidatorFormats $formatValidator,
         array $data,
         array $rules,
         array $messages = [],
@@ -48,73 +49,51 @@ final class Validator extends BaseValidator
     }
 
     /**
-     * Retorna uma única instância de cada regra durante
-     * o ciclo de vida deste Validator.
-     *
-     * @template T of object
-     *
-     * @param class-string<T> $ruleClass
-     *
-     * @return T
+     * Executa a validação de formato sem recriar ValidatorFormats.
      */
-    private function rule(string $ruleClass): object
-    {
-        if (!isset($this->ruleInstances[$ruleClass])) {
-            $this->ruleInstances[$ruleClass] = new $ruleClass();
-        }
-
-        return $this->ruleInstances[$ruleClass];
-    }
-
-    /**
-     * Converte somente valores escalares/stringable em string.
-     *
-     * Arrays e objetos arbitrários são rejeitados para evitar
-     * casts inesperados de dados recebidos externamente.
-     */
-    private function normalizeValue(mixed $value): ?string
-    {
-        if ($value === null) {
-            return null;
-        }
-
-        if (is_string($value)) {
-            return trim($value);
-        }
-
-        if (is_int($value) || is_float($value)) {
-            return (string) $value;
-        }
-
-        if ($value instanceof \Stringable) {
-            return trim((string) $value);
-        }
-
-        return null;
-    }
-
-    private function validateFormat(
+    protected function validateFormat(
         mixed $value,
         string $document,
         ?string $attribute = null
     ): bool {
-        $normalizedValue = $this->normalizeValue($value);
+        if ($value === null || $value === '') {
+            return false;
+        }
 
-        if ($normalizedValue === null || $normalizedValue === '') {
+        if (!is_string($value) && !is_numeric($value)) {
             return false;
         }
 
         return (bool) $this->formatValidator->execute(
-            $normalizedValue,
+            (string) $value,
             $document
         );
     }
 
+    /**
+     * Retorna uma única instância de cada classe de regra
+     * durante o ciclo de vida deste Validator.
+     *
+     * @template T of object
+     *
+     * @param class-string<T> $ruleClass
+     * @return T
+     */
+    private function rule(string $ruleClass): object
+    {
+        if (!class_exists($ruleClass)) {
+            throw new InvalidArgumentException(
+                sprintf('Classe de validação "%s" não encontrada.', $ruleClass)
+            );
+        }
+
+        return $this->ruleInstances[$ruleClass]
+            ??= new $ruleClass();
+    }
+
     protected function validateCpf(string $attribute, mixed $value): bool
     {
-        $value = $this->normalizeValue($value);
-
-        if ($value === null) {
+        if (!$this->isValidScalarValue($value)) {
             return false;
         }
 
@@ -122,33 +101,37 @@ final class Validator extends BaseValidator
             return false;
         }
 
-        /** @var Cpf $rule */
-        $rule = $this->rule(Cpf::class);
+        /** @var Cpf $validator */
+        $validator = $this->rule(Cpf::class);
 
-        return (bool) $rule->validateCpf($attribute, $value);
+        return (bool) $validator->validateCpf(
+            $attribute,
+            (string) $value
+        );
     }
 
     protected function validateCnpj(string $attribute, mixed $value): bool
     {
-        $value = $this->normalizeValue($value);
-
-        if ($value === null) {
+        if (!$this->isValidScalarValue($value)) {
             return false;
         }
 
-        /** @var Cnpj $rule */
-        $rule = $this->rule(Cnpj::class);
+        /** @var Cnpj $validator */
+        $validator = $this->rule(Cnpj::class);
 
-        return (bool) $rule->validateCnpj($attribute, $value);
+        return (bool) $validator->validateCnpj(
+            $attribute,
+            (string) $value
+        );
     }
 
     protected function validateCpfCnpj(string $attribute, mixed $value): bool
     {
-        $value = $this->normalizeValue($value);
-
-        if ($value === null) {
+        if (!$this->isValidScalarValue($value)) {
             return false;
         }
+
+        $value = (string) $value;
 
         /** @var Cpf $cpf */
         $cpf = $this->rule(Cpf::class);
@@ -165,74 +148,81 @@ final class Validator extends BaseValidator
 
     protected function validateCnh(string $attribute, mixed $value): bool
     {
-        $value = $this->normalizeValue($value);
-
-        if ($value === null) {
+        if (!$this->isValidScalarValue($value)) {
             return false;
         }
 
-        /** @var Cnh $rule */
-        $rule = $this->rule(Cnh::class);
+        /** @var Cnh $validator */
+        $validator = $this->rule(Cnh::class);
 
-        return (bool) $rule->validateCnh($attribute, $value);
+        return (bool) $validator->validateCnh(
+            $attribute,
+            (string) $value
+        );
     }
 
     protected function validateTituloEleitor(
         string $attribute,
         mixed $value
     ): bool {
-        $value = $this->normalizeValue($value);
-
-        if ($value === null) {
+        if (!$this->isValidScalarValue($value)) {
             return false;
         }
 
-        /** @var TituloEleitoral $rule */
-        $rule = $this->rule(TituloEleitoral::class);
+        /** @var TituloEleitoral $validator */
+        $validator = $this->rule(TituloEleitoral::class);
 
-        return (bool) $rule->validateTituloEleitor($attribute, $value);
+        return (bool) $validator->validateTituloEleitor(
+            $attribute,
+            (string) $value
+        );
     }
 
     protected function validateNis(string $attribute, mixed $value): bool
     {
-        $value = $this->normalizeValue($value);
-
-        if ($value === null) {
+        if (!$this->isValidScalarValue($value)) {
             return false;
         }
 
-        /** @var Nis $rule */
-        $rule = $this->rule(Nis::class);
+        /** @var Nis $validator */
+        $validator = $this->rule(Nis::class);
 
-        return (bool) $rule->validateNis($attribute, $value);
+        return (bool) $validator->validateNis(
+            $attribute,
+            (string) $value
+        );
     }
 
     protected function validateCns(string $attribute, mixed $value): bool
     {
-        $value = $this->normalizeValue($value);
-
-        if ($value === null) {
+        if (!$this->isValidScalarValue($value)) {
             return false;
         }
 
-        /** @var Cns $rule */
-        $rule = $this->rule(Cns::class);
+        /** @var Cns $validator */
+        $validator = $this->rule(Cns::class);
 
-        return (bool) $rule->validateCns($attribute, $value);
+        return (bool) $validator->validateCns(
+            $attribute,
+            (string) $value
+        );
     }
 
-    protected function validateCertidao(string $attribute, mixed $value): bool
-    {
-        $value = $this->normalizeValue($value);
-
-        if ($value === null) {
+    protected function validateCertidao(
+        string $attribute,
+        mixed $value
+    ): bool {
+        if (!$this->isValidScalarValue($value)) {
             return false;
         }
 
-        /** @var Certidao $rule */
-        $rule = $this->rule(Certidao::class);
+        /** @var Certidao $validator */
+        $validator = $this->rule(Certidao::class);
 
-        return (bool) $rule->validateCertidao($attribute, $value);
+        return (bool) $validator->validateCertidao(
+            $attribute,
+            (string) $value
+        );
     }
 
     protected function validateInscricaoEstadual(
@@ -240,18 +230,16 @@ final class Validator extends BaseValidator
         mixed $value,
         array $parameters
     ): bool {
-        $value = $this->normalizeValue($value);
-
-        if ($value === null) {
+        if (!$this->isValidScalarValue($value)) {
             return false;
         }
 
-        /** @var InscricaoEstadual $rule */
-        $rule = $this->rule(InscricaoEstadual::class);
+        /** @var InscricaoEstadual $validator */
+        $validator = $this->rule(InscricaoEstadual::class);
 
-        return (bool) $rule->validateInscricaoEstadual(
+        return (bool) $validator->validateInscricaoEstadual(
             $attribute,
-            $value,
+            (string) $value,
             $parameters
         );
     }
@@ -260,59 +248,72 @@ final class Validator extends BaseValidator
         string $attribute,
         mixed $value
     ): bool {
-        $value = $this->normalizeValue($value);
-
-        if ($value === null) {
+        if (!$this->isValidScalarValue($value)) {
             return false;
         }
 
-        /** @var Renavam $rule */
-        $rule = $this->rule(Renavam::class);
+        /** @var Renavam $validator */
+        $validator = $this->rule(Renavam::class);
 
-        return (bool) $rule->validateRenavam($attribute, $value);
+        return (bool) $validator->validateRenavam(
+            $attribute,
+            (string) $value
+        );
     }
 
     protected function validatePlaca(string $attribute, mixed $value): bool
     {
-        $value = $this->normalizeValue($value);
-
-        if ($value === null) {
+        if (!$this->isValidScalarValue($value)) {
             return false;
         }
 
-        /** @var Placa $rule */
-        $rule = $this->rule(Placa::class);
+        /** @var Placa $validator */
+        $validator = $this->rule(Placa::class);
 
-        return (bool) $rule->validatePlaca($attribute, $value);
+        return (bool) $validator->validatePlaca(
+            $attribute,
+            (string) $value
+        );
     }
 
     protected function validateDdd(string $attribute, mixed $value): bool
     {
-        $value = $this->normalizeValue($value);
-
-        if ($value === null) {
+        if (!$this->isValidScalarValue($value)) {
             return false;
         }
 
-        /** @var Ddd $rule */
-        $rule = $this->rule(Ddd::class);
+        /** @var Ddd $validator */
+        $validator = $this->rule(Ddd::class);
 
-        return (bool) $rule->validateDdd($attribute, $value);
+        return (bool) $validator->validateDdd(
+            $attribute,
+            (string) $value
+        );
     }
 
     protected function validatePassaporte(
         string $attribute,
         mixed $value
     ): bool {
-        $value = $this->normalizeValue($value);
-
-        if ($value === null) {
+        if (!$this->isValidScalarValue($value)) {
             return false;
         }
 
-        /** @var Passaporte $rule */
-        $rule = $this->rule(Passaporte::class);
+        /** @var Passaporte $validator */
+        $validator = $this->rule(Passaporte::class);
 
-        return (bool) $rule->validatePassaporte($attribute, $value);
+        return (bool) $validator->validatePassaporte(
+            $attribute,
+            (string) $value
+        );
+    }
+
+    /**
+     * Impede que arrays, objetos ou outros valores inesperados
+     * cheguem às classes que manipulam documentos.
+     */
+    private function isValidScalarValue(mixed $value): bool
+    {
+        return is_string($value) || is_int($value);
     }
 }
