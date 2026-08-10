@@ -21,18 +21,9 @@ use Illuminate\Validation\Validator as BaseValidator;
 
 class Validator extends BaseValidator
 {
-    private ValidatorFormats $formatValidator;
-
-    /**
-     * Cache das instâncias das regras.
-     *
-     * @var array<class-string, object>
-     */
-    private array $validators = [];
-
     public function __construct(
         Translator $translator,
-        ValidatorFormats $formatValidator,
+        private readonly ValidatorFormats $formatValidator,
         array $data,
         array $rules,
         array $messages = [],
@@ -45,114 +36,92 @@ class Validator extends BaseValidator
             $messages,
             $customAttributes
         );
-
-        $this->formatValidator = $formatValidator;
     }
 
-    protected function validateFormat($value, string $document)
-    {
+    protected function validateFormat(
+        mixed $value,
+        string $document,
+        ?string $attribute = null
+    ): bool {
         if (empty($value)) {
-            return null;
+            return false;
         }
 
         return $this->formatValidator->execute($value, $document);
     }
 
-    protected function validateCpf($attribute, $value): bool
+    protected function validateCpf(string $attribute, mixed $value): bool
     {
-        $this->validateFormat($value, 'cpf');
+        if (!$this->validateFormat($value, 'cpf', $attribute)) {
+            return false;
+        }
 
-        return $this->validator(Cpf::class)
-            ->validateCpf($attribute, $value);
+        return (new Cpf())->validateCpf($attribute, $value);
     }
 
-    protected function validateCnpj($attribute, $value): bool
+    protected function validateCnpj(string $attribute, mixed $value): bool
     {
-        return $this->validator(Cnpj::class)
-            ->validateCnpj($attribute, $value);
+        return (new Cnpj())->validateCnpj($attribute, $value);
     }
 
-    protected function validateCpfCnpj($attribute, $value): bool
+    protected function validateCpfCnpj(string $attribute, mixed $value): bool
     {
-        return $this->validator(Cpf::class)->validateCpf($attribute, $value)
-            || $this->validator(Cnpj::class)->validateCnpj($attribute, $value);
+        return (new Cpf())->validateCpf($attribute, $value)
+            || (new Cnpj())->validateCnpj($attribute, $value);
     }
 
-    protected function validateCnh($attribute, $value): bool
+    protected function validateCnh(string $attribute, mixed $value): bool
     {
-        return $this->validator(Cnh::class)
-            ->validateCnh($attribute, $value);
+        return (new Cnh())->validateCnh($attribute, $value);
     }
 
-    protected function validateTituloEleitor($attribute, $value): bool
+    protected function validateTituloEleitor(string $attribute, mixed $value): bool
     {
-        return $this->validator(TituloEleitoral::class)
+        return (new TituloEleitoral())
             ->validateTituloEleitor($attribute, $value);
     }
 
-    protected function validateNis($attribute, $value): bool
+    protected function validateNis(string $attribute, mixed $value): bool
     {
-        return $this->validator(Nis::class)
-            ->validateNis($attribute, $value);
+        return (new Nis())->validateNis($attribute, $value);
     }
 
-    protected function validateCns($attribute, $value): bool
+    protected function validateCns(string $attribute, mixed $value): bool
     {
-        return $this->validator(Cns::class)
-            ->validateCns($attribute, $value);
+        return (new Cns())->validateCns($attribute, $value);
     }
 
-    protected function validateCertidao($attribute, $value): bool
+    protected function validateCertidao(string $attribute, mixed $value): bool
     {
-        return $this->validator(Certidao::class)
-            ->validateCertidao($attribute, $value);
+        return (new Certidao())->validateCertidao($attribute, $value);
     }
 
     protected function validateInscricaoEstadual(
-        $attribute,
-        $value,
-        $parameters
+        string $attribute,
+        mixed $value,
+        array $parameters
     ): bool {
-        return $this->validator(InscricaoEstadual::class)
+        return (new InscricaoEstadual())
             ->validateInscricaoEstadual($attribute, $value, $parameters);
     }
 
-    protected function validateRenavam($attribute, $value): bool
+    protected function validateRenavam(string $attribute, mixed $value): bool
     {
-        return $this->validator(Renavam::class)
-            ->validateRenavam($attribute, $value);
+        return (new Renavam())->validateRenavam($attribute, $value);
     }
 
-    protected function validatePlaca($attribute, $value): bool
+    protected function validatePlaca(string $attribute, mixed $value): bool
     {
-        return $this->validator(Placa::class)
-            ->validatePlaca($attribute, $value);
+        return (new Placa())->validatePlaca($attribute, $value);
     }
 
-    protected function validateDdd($attribute, $value): bool
+    protected function validateDdd(string $attribute, mixed $value): bool
     {
-        return $this->validator(Ddd::class)
-            ->validateDdd($attribute, $value);
+        return (new Ddd())->validateDdd($attribute, $value);
     }
 
-    protected function validatePassaporte($attribute, $value): bool
+    protected function validatePassaporte(string $attribute, mixed $value): bool
     {
-        return $this->validator(Passaporte::class)
-            ->validatePassaporte($attribute, $value);
-    }
-
-    /**
-     * Retorna uma única instância de cada regra.
-     *
-     * @template T of object
-     *
-     * @param class-string<T> $class
-     *
-     * @return T
-     */
-    private function validator(string $class): object
-    {
-        return $this->validators[$class]
-            ??= new $class();
+        return (new Passaporte())->validatePassaporte($attribute, $value);
     }
 }
