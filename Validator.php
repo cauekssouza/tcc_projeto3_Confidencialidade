@@ -23,20 +23,20 @@ use Illuminate\Validation\Validator as BaseValidator;
 
 class Validator extends BaseValidator
 {
-    private readonly ValidatorFormats $formatValidator;
+    private ValidatorFormats $formatValidator;
 
-    private readonly Cpf $cpf;
-    private readonly Cnpj $cnpj;
-    private readonly Cnh $cnh;
-    private readonly TituloEleitoral $tituloEleitoral;
-    private readonly Nis $nis;
-    private readonly Cns $cns;
-    private readonly Certidao $certidao;
-    private readonly InscricaoEstadual $inscricaoEstadual;
-    private readonly Renavam $renavam;
-    private readonly Placa $placa;
-    private readonly Ddd $ddd;
-    private readonly Passaporte $passaporte;
+    private Cpf $cpf;
+    private Cnpj $cnpj;
+    private Cnh $cnh;
+    private TituloEleitoral $tituloEleitoral;
+    private Nis $nis;
+    private Cns $cns;
+    private Certidao $certidao;
+    private InscricaoEstadual $inscricaoEstadual;
+    private Renavam $renavam;
+    private Placa $placa;
+    private Ddd $ddd;
+    private Passaporte $passaporte;
 
     public function __construct(
         Translator $translator,
@@ -54,11 +54,15 @@ class Validator extends BaseValidator
             $customAttributes
         );
 
+        /*
+         * Reutiliza a dependência recebida em vez de criar um novo
+         * ValidatorFormats a cada validação.
+         */
         $this->formatValidator = $formatValidator;
 
         /*
-         * As instâncias são criadas uma única vez por Validator,
-         * evitando alocações repetidas durante múltiplas validações.
+         * Instancia as regras uma única vez durante o ciclo de vida
+         * deste Validator, evitando alocações repetidas.
          */
         $this->cpf = new Cpf();
         $this->cnpj = new Cnpj();
@@ -80,118 +84,104 @@ class Validator extends BaseValidator
         ?string $attribute = null
     ): bool {
         /*
-         * Não permita que valores vazios avancem implicitamente.
+         * Fail closed:
          *
-         * Caso campos opcionais devam aceitar vazio, essa decisão deve
-         * ficar nas regras do Laravel (nullable/sometimes), e não ser
-         * inferida silenciosamente aqui.
+         * um valor ausente/vazio nunca deve resultar em null implícito.
+         * A validação retorna explicitamente false.
          */
-        if ($value === null || $value === '') {
+        if (empty($value)) {
             return false;
         }
 
-        /*
-         * Documentos pessoais devem chegar em representação escalar
-         * previsível. Arrays/objetos são rejeitados para evitar
-         * comportamento inesperado nas regras subsequentes.
-         */
-        if (!is_string($value) && !is_int($value)) {
-            return false;
-        }
-
-        return $this->formatValidator->execute(
-            (string) $value,
+        return (bool) $this->formatValidator->execute(
+            $value,
             $document
-        ) === true;
+        );
     }
 
-    protected function validateCpf(string $attribute, mixed $value): bool
+    protected function validateCpf($attribute, $value): bool
     {
         /*
-         * Fail fast:
+         * Validação em cascata com short-circuit:
          *
-         * a validação específica só acontece se a validação de formato
-         * tiver sido aprovada.
+         * 1. valida o formato;
+         * 2. somente se o formato for válido executa a regra de CPF.
+         *
+         * Isso corrige o comportamento anterior, no qual o retorno de
+         * validateFormat() era simplesmente descartado.
          */
-        if (!$this->validateFormat($value, 'cpf', $attribute)) {
-            return false;
-        }
-
-        return $this->cpf->validateCpf($attribute, $value);
+        return $this->validateFormat($value, 'cpf', $attribute)
+            && $this->cpf->validateCpf($attribute, $value);
     }
 
-    protected function validateCnpj(string $attribute, mixed $value): bool
+    protected function validateCnpj($attribute, $value): bool
     {
         return $this->cnpj->validateCnpj($attribute, $value);
     }
 
-    protected function validateCpfCnpj(string $attribute, mixed $value): bool
+    protected function validateCpfCnpj($attribute, $value): bool
     {
         return $this->cpf->validateCpf($attribute, $value)
             || $this->cnpj->validateCnpj($attribute, $value);
     }
 
-    protected function validateCnh(string $attribute, mixed $value): bool
+    protected function validateCnh($attribute, $value): bool
     {
         return $this->cnh->validateCnh($attribute, $value);
     }
 
-    protected function validateTituloEleitor(
-        string $attribute,
-        mixed $value
-    ): bool {
-        return $this->tituloEleitoral->validateTituloEleitor(
-            $attribute,
-            $value
-        );
+    protected function validateTituloEleitor($attribute, $value): bool
+    {
+        return $this->tituloEleitoral
+            ->validateTituloEleitor($attribute, $value);
     }
 
-    protected function validateNis(string $attribute, mixed $value): bool
+    protected function validateNis($attribute, $value): bool
     {
         return $this->nis->validateNis($attribute, $value);
     }
 
-    protected function validateCns(string $attribute, mixed $value): bool
+    protected function validateCns($attribute, $value): bool
     {
         return $this->cns->validateCns($attribute, $value);
     }
 
-    protected function validateCertidao(string $attribute, mixed $value): bool
+    protected function validateCertidao($attribute, $value): bool
     {
         return $this->certidao->validateCertidao($attribute, $value);
     }
 
     protected function validateInscricaoEstadual(
-        string $attribute,
-        mixed $value,
-        array $parameters
+        $attribute,
+        $value,
+        $parameters
     ): bool {
-        return $this->inscricaoEstadual->validateInscricaoEstadual(
-            $attribute,
-            $value,
-            $parameters
-        );
+        return $this->inscricaoEstadual
+            ->validateInscricaoEstadual(
+                $attribute,
+                $value,
+                $parameters
+            );
     }
 
-    protected function validateRenavam(string $attribute, mixed $value): bool
+    protected function validateRenavam($attribute, $value): bool
     {
         return $this->renavam->validateRenavam($attribute, $value);
     }
 
-    protected function validatePlaca(string $attribute, mixed $value): bool
+    protected function validatePlaca($attribute, $value): bool
     {
         return $this->placa->validatePlaca($attribute, $value);
     }
 
-    protected function validateDdd(string $attribute, mixed $value): bool
+    protected function validateDdd($attribute, $value): bool
     {
         return $this->ddd->validateDdd($attribute, $value);
     }
 
-    protected function validatePassaporte(
-        string $attribute,
-        mixed $value
-    ): bool {
-        return $this->passaporte->validatePassaporte($attribute, $value);
+    protected function validatePassaporte($attribute, $value): bool
+    {
+        return $this->passaporte
+            ->validatePassaporte($attribute, $value);
     }
 }
