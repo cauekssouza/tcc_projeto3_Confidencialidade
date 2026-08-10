@@ -2,18 +2,20 @@
 
 namespace geekcom\ValidatorDocs;
 
-use geekcom\ValidatorDocs\Rules\Certidao;
-use geekcom\ValidatorDocs\Rules\Cnh;
-use geekcom\ValidatorDocs\Rules\Cnpj;
-use geekcom\ValidatorDocs\Rules\Cns;
-use geekcom\ValidatorDocs\Rules\Cpf;
-use geekcom\ValidatorDocs\Rules\Ddd;
-use geekcom\ValidatorDocs\Rules\InscricaoEstadual;
-use geekcom\ValidatorDocs\Rules\Nis;
-use geekcom\ValidatorDocs\Rules\Passaporte;
-use geekcom\ValidatorDocs\Rules\Placa;
-use geekcom\ValidatorDocs\Rules\Renavam;
-use geekcom\ValidatorDocs\Rules\TituloEleitoral;
+use geekcom\ValidatorDocs\Rules\{
+    Certidao,
+    Cnh,
+    Cnpj,
+    Cns,
+    Cpf,
+    Ddd,
+    InscricaoEstadual,
+    Nis,
+    Passaporte,
+    Placa,
+    Renavam,
+    TituloEleitoral
+};
 use Illuminate\Contracts\Translation\Translator;
 use Illuminate\Validation\Validator as BaseValidator;
 
@@ -22,8 +24,7 @@ class Validator extends BaseValidator
     private ValidatorFormats $formatValidator;
 
     /**
-     * Mantém uma única instância de cada regra durante o ciclo
-     * de vida do Validator.
+     * Cache das instâncias das regras.
      *
      * @var array<class-string, object>
      */
@@ -48,11 +49,13 @@ class Validator extends BaseValidator
         $this->formatValidator = $formatValidator;
     }
 
-    protected function validateFormat($value, string $document): void
+    protected function validateFormat($value, string $document)
     {
-        if (!empty($value)) {
-            $this->formatValidator->execute($value, $document);
+        if (empty($value)) {
+            return null;
         }
+
+        return $this->formatValidator->execute($value, $document);
     }
 
     protected function validateCpf($attribute, $value): bool
@@ -71,8 +74,8 @@ class Validator extends BaseValidator
 
     protected function validateCpfCnpj($attribute, $value): bool
     {
-        return $this->validateCpf($attribute, $value)
-            || $this->validateCnpj($attribute, $value);
+        return $this->validator(Cpf::class)->validateCpf($attribute, $value)
+            || $this->validator(Cnpj::class)->validateCnpj($attribute, $value);
     }
 
     protected function validateCnh($attribute, $value): bool
@@ -111,11 +114,7 @@ class Validator extends BaseValidator
         $parameters
     ): bool {
         return $this->validator(InscricaoEstadual::class)
-            ->validateInscricaoEstadual(
-                $attribute,
-                $value,
-                $parameters
-            );
+            ->validateInscricaoEstadual($attribute, $value, $parameters);
     }
 
     protected function validateRenavam($attribute, $value): bool
@@ -143,9 +142,12 @@ class Validator extends BaseValidator
     }
 
     /**
+     * Retorna uma única instância de cada regra.
+     *
      * @template T of object
      *
      * @param class-string<T> $class
+     *
      * @return T
      */
     private function validator(string $class): object
